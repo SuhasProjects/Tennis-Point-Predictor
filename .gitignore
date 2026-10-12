@@ -1,0 +1,14 @@
+# Local training and test media
+Test_media/
+
+# Generated video outputs
+output_*.mp4
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Local Python environments
+.venv/
+venv/
+
