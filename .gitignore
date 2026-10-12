@@ -1,8 +1,8 @@
 # Local training and test media
-Test_media/
+data/
 
 # Generated video outputs
-output_*.mp4
+outputs/
 
 # Python cache files
 __pycache__/

@@ -1,20 +1,31 @@
 import cv2
+from pathlib import Path
+
 from court_detector import CourtDetector
 from player_detector import PlayerPoseDetector
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 # 1. Initialize both models once to load them into the GPU
 print("Loading Court PyTorch model...")
-court_detector = CourtDetector(weights_path='Deuce-Ex-Machina/Court Detector/model_tennis_court_det.pt')
+court_detector = CourtDetector(
+    weights_path=PROJECT_ROOT / "models" / "model_tennis_court_det.pt"
+)
 
 print("Loading YOLO Player model...")
 # LOWERED CONFIDENCE TO 0.15 HERE TO CATCH THE FAR PLAYER
-pose_detector = PlayerPoseDetector(model_path="yolov8s-pose.pt", conf=0.15)
+pose_detector = PlayerPoseDetector(
+    model_path=PROJECT_ROOT / "models" / "yolov8s-pose.pt",
+    conf=0.15,
+)
 
 # 2. Setup video input and output
-input_file = "Deuce-Ex-Machina/Test_media/Clipto AI Video Downloader CRAZY 70-Shot Rally! _ Australian Open 2023.mp4"
-output_file = "output_combined.mp4"
+input_file = PROJECT_ROOT / "data" / "Clipto AI Video Downloader CRAZY 70-Shot Rally! _ Australian Open 2023.mp4"
+output_dir = PROJECT_ROOT / "outputs"
+output_dir.mkdir(exist_ok=True)
+output_file = output_dir / "output_combined.mp4"
 
-cap = cv2.VideoCapture(input_file)
+cap = cv2.VideoCapture(str(input_file))
 if not cap.isOpened():
     raise ValueError(f"Error: Could not open video at {input_file}")
 
@@ -23,7 +34,7 @@ total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
 # We force the output to 1280x720 so the court math aligns perfectly
 width, height = 1280, 720
-out = cv2.VideoWriter(output_file, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+out = cv2.VideoWriter(str(output_file), cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
 # 3. State variables for Court Smoothing (Exponential Moving Average)
 frame_count = 0

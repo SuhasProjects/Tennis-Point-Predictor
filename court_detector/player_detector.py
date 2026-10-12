@@ -1,12 +1,15 @@
 import cv2 
 import numpy as np
+from pathlib import Path
 from ultralytics import YOLO 
+
+DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[1] / "models" / "yolov8s-pose.pt"
 
 class PlayerPoseDetector: 
     # Lowered confidence from 0.3 to 0.15 to better capture the far-side player 
-    def __init__(self, model_path="yolov8s-pose.pt", conf=0.15, imgsz=1280): 
+    def __init__(self, model_path=DEFAULT_MODEL_PATH, conf=0.15, imgsz=1280): 
         """Initializes the YOLO model once to keep video processing fast.""" 
-        self.model = YOLO(model_path) 
+        self.model = YOLO(str(model_path)) 
         self.conf = conf 
         self.imgsz = imgsz 
         
