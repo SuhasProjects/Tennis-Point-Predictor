@@ -1,72 +1,62 @@
-import cv2  
+"""Reusable video processor built on the stateful court/player detectors."""
 
-class CourtVideoProcessor:  
-    def __init__(self, court_detector, player_detector):
-        """
-        Takes already initialized detector instances.
-        This prevents reloading the neural network weights for every new video.
-        """
+from __future__ import annotations
+
+from pathlib import Path
+
+import cv2
+
+try:
+    from .visualization import draw_court_overlay, draw_minimap
+except ImportError:  # pragma: no cover
+    from visualization import draw_court_overlay, draw_minimap
+
+
+class CourtVideoProcessor:
+    def __init__(self, court_detector, player_detector) -> None:
         self.court_detector = court_detector
         self.player_detector = player_detector
 
-    def process(self, input_path, output_path, detect_interval=5, smoothing_factor=0.2):  
-        """Processes a video and saves the annotated output to the disk."""  
-        cap = cv2.VideoCapture(input_path)  
-        if not cap.isOpened():  
-            raise ValueError(f"Error: Could not open video at {input_path}")  
+    def process(
+        self,
+        input_path: str | Path,
+        output_path: str | Path,
+        detect_interval: int = 5,
+        smoothing_factor: float = 0.2,
+    ) -> None:
+        """Annotate a video using the same stable geometry as the CLI pipeline."""
+        self.court_detector.smoothing_factor = float(smoothing_factor)
+        self.court_detector.reset_tracking()
+        self.player_detector.reset_tracking()
+        cap = cv2.VideoCapture(str(input_path))
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video at {input_path}")
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        writer = cv2.VideoWriter(
+            str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (1280, 720)
+        )
+        if not writer.isOpened():
+            cap.release()
+            raise RuntimeError(f"Could not create output video at {output_path}")
 
-        fps = int(cap.get(cv2.CAP_PROP_FPS))  
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  
-        
-        # Force the output to the 1280x720 coordinate space used by the model  
-        width, height = 1280, 720  
-        out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))  
-
-        print(f"Processing {total_frames} frames from {input_path}...")  
-        
-        frame_count = 0  
-        current_keypoints = None  
-        target_keypoints = None  
-        latest_matrix = None
-
-        while True:  
-            ret, frame = cap.read()  
-            if not ret:  
-                break  
-                
-            # 1. Update TARGET coordinates and Homography Matrix at the specified interval
-            if frame_count % detect_interval == 0 or target_keypoints is None:  
-                # Unpack the 3 variables based on our court_detector.py update
-                _, target_keypoints, latest_matrix = self.court_detector.detect_frame(frame, use_refine_kps=False, use_homography=True)
-                
-                # Snap instantly on the very first frame  
-                if current_keypoints is None:  
-                    current_keypoints = [{"id": kp["id"], "x": kp["x"], "y": kp["y"]} for kp in target_keypoints]  
-
-            # 2. Smoothly interpolate CURRENT coordinates toward TARGET coordinates  
-            target_dict = {kp["id"]: kp for kp in target_keypoints}  
-            
-            for curr in current_keypoints:  
-                if curr["id"] in target_dict:  
-                    targ = target_dict[curr["id"]]  
-                    curr["x"] += smoothing_factor * (targ["x"] - curr["x"])  
-                    curr["y"] += smoothing_factor * (targ["y"] - curr["y"])  
-                
-            # 3. Draw Court Keypoints
-            output_frame = cv2.resize(frame, (width, height))  
-            for kp in current_keypoints:  
-                cv2.circle(output_frame, (int(kp["x"]), int(kp["y"])), radius=5, color=(0, 0, 255), thickness=-1)  
-            
-            # 4. Process Players (using the cached homography matrix to filter out non-players)
-            output_frame = self.player_detector.process_frame(output_frame, matrix_trans=latest_matrix)
-                
-            # 5. Write Frame
-            out.write(output_frame)  
-            frame_count += 1  
-            
-            if frame_count % 100 == 0:  
-                print(f"Processed {frame_count}/{total_frames} frames...")  
-
-        cap.release()  
-        out.release()  
-        print(f"Successfully saved to {output_path}")  
+        frame_index = 0
+        try:
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                frame, court = self.court_detector.track_frame(
+                    frame, frame_index, detect_interval=detect_interval
+                )
+                if court.scene_cut:
+                    self.player_detector.reset_tracking()
+                detections = self.player_detector.detect_players(frame, court.matrix)
+                draw_court_overlay(frame, court.matrix)
+                self.player_detector.annotate(frame, detections)
+                if court.matrix is not None:
+                    draw_minimap(frame, detections)
+                writer.write(frame)
+                frame_index += 1
+        finally:
+            cap.release()
+            writer.release()

@@ -1,5 +1,6 @@
 # Local training and test media
 data/
+datasets/
 
 # Generated video outputs
 outputs/
@@ -11,4 +12,5 @@ __pycache__/
 # Local Python environments
 .venv/
 venv/
+.env
 

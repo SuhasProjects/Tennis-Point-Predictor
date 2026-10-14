@@ -1,6 +1,7 @@
 import numpy as np
-from sympy import Line 
 import sympy
+from sympy import Line
+
 
 def gaussian2D(shape, sigma=1):
     m, n = [(ss - 1.) / 2. for ss in shape]
@@ -59,9 +60,8 @@ def line_intersection(line1, line2):
 
     intersection = l1.intersection(l2)
     point = None
-    if len(intersection) > 0:
-        if isinstance(intersection[0], sympy.geometry.point.Point2D):
-            point = intersection[0].coordinates
+    if len(intersection) > 0 and isinstance(intersection[0], sympy.geometry.point.Point2D):
+        point = intersection[0].coordinates
     return point
 
 
