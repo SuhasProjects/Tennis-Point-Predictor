@@ -398,34 +398,3 @@ class PlayerPoseDetector:
                 0.48, color, 1, cv2.LINE_AA,
             )
         return frame
-
-    def process_frame(self, frame, matrix_trans=None):
-        """Backward-compatible annotate-in-place API."""
-        return self.annotate(frame, self.detect_players(frame, matrix_trans))
-
-    def process_video(self, input_path, output_path, court_detector=None):
-        """Process a video; prefer ``run_pipeline.py`` for full telemetry."""
-        cap = cv2.VideoCapture(str(input_path))
-        if not cap.isOpened():
-            raise ValueError(f"Error opening video stream or file: {input_path}")
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        width, height = 1280, 720
-        out = cv2.VideoWriter(
-            str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height)
-        )
-        frame_index = 0
-        while True:
-            ok, frame = cap.read()
-            if not ok:
-                break
-            matrix = None
-            if court_detector is not None:
-                frame, court = court_detector.track_frame(frame, frame_index)
-                matrix = court.matrix
-            else:
-                frame = cv2.resize(frame, (width, height))
-            detections = self.detect_players(frame, matrix)
-            out.write(self.annotate(frame, detections))
-            frame_index += 1
-        cap.release()
-        out.release()

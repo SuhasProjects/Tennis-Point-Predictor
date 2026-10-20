@@ -1,57 +1,55 @@
 # Active-player pose training
 
-The training target is a single `player` class containing only the near and far
-competitors. Officials, ball kids, and spectators are intentionally left
-unlabelled so the fine-tuned model learns that they are background.
+## Recommended movement-product workflow
 
-## 1. Generate review candidates
+The quickest finished product does not require fine-tuning the pose network. Extract
+compact coordinates and train the included future-position regressor:
 
-From the project root:
-
-```powershell
-.\.venv\Scripts\python.exe training\prepare_pose_dataset.py `
-  --input "data\Clipto AI Video Downloader CRAZY 70-Shot Rally! _ Australian Open 2023.mp4" `
-  --stride 25
+```bash
+python -m court_detector.movement_analyzer all --input data/match.mp4 \
+  --output-video outputs/match_annotated.mp4
 ```
 
-Frames are split by contiguous temporal blocks, not randomly, to prevent nearly
-identical neighboring frames leaking between train and validation. The labels
-are pseudo-labels: visually review them before using them as ground truth,
-especially low-confidence far-player poses and occluded ankles.
+To accumulate more training sources, run `extract` once per video against the same
+database, then retrain and rebuild the report:
 
-## 2. Validate labels
-
-```powershell
-.\.venv\Scripts\python.exe training\validate_pose_dataset.py
-.\.venv\Scripts\python.exe training\preview_pose_dataset.py
+```bash
+python -m court_detector.movement_analyzer extract --input data/match_2.mp4
+python -m court_detector.movement_analyzer train
+python -m court_detector.movement_analyzer report
 ```
 
-## 3. Fine-tune
+Training defaults to player-only features. Add `--use-ball-features` to `train` to include
+the stored ball coordinates and availability flags. On the current six-video demo, the
+player-only model measured 0.929 m mean error versus 0.931 m with ball features, so the
+player-only result is the production artifact.
 
-```powershell
-.\.venv\Scripts\python.exe training\train_pose.py --epochs 100 --imgsz 1280
+The database contains frame/time identifiers, court validity, scene segments, feet
+coordinates, ball coordinates, confidence, speeds, and imputation flags. It deliberately
+does not contain video frames or pose arrays. The learned target is each player's court
+position 0.5 seconds in the future. This provides automatic labels from later coordinates
+without pretending to predict a point winner.
+
+## Optional ball fine-tuning
+
+Place the public TrackNet dataset at `datasets/tracknet` with `game1` through
+`game10` beneath it. Games 1–8 are used for training and games 9–10 for validation:
+
+```bash
+python training/train_ball.py --epochs 10 --batch 1
 ```
 
-Weights and plots are written under `outputs/training/`. Use a video-disjoint
-test set for the final measurement; pseudo-label agreement is not an independent
-accuracy metric.
+For a quick loader/training check before committing GPU time:
 
-## Export tracked sequences
-
-Database telemetry can be converted to a compressed dense tensor for a later
-sequence/point model. The result contains `[frames, 2, 59]` player features,
-missing-data masks, timestamps, and homographies:
-
-```powershell
-.\.venv\Scripts\python.exe training\export_telemetry.py --video-id 1
+```bash
+python training/train_ball.py --epochs 1 \
+  --max-train-samples 20 --max-val-samples 10
 ```
 
-The player axis is always `[far, near]`. Point-outcome labels are intentionally
-not fabricated; add verified rally/point labels before supervised outcome
-training.
+Images are decoded and target heatmaps are generated on demand, so this does not create
+another directory of derived frames. The 256-class per-pixel output is memory-heavy;
+keep batch size at 1 on a laptop GPU.
 
-The primary generated candidate set contains 193 structurally valid samples:
-159 training images and 34 validation images from two source videos. The harder
-independent video has a separate 65-sample review set at
-`datasets/videoplayback2_review` (52 train, 13 validation); inspect
-`outputs/videoplayback2_dataset_preview.jpg` before merging it into training.
+The training target for ball detection is the 2D ball heatmap. Player detection uses
+the pretrained YOLOv8-pose weights (`models/yolov8s-pose.pt`) directly, bypassing the need for
+pose re-training.

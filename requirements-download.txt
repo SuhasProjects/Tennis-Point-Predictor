@@ -1,0 +1,2 @@
+# Optional helper used only to reproduce the public Google Drive asset download.
+gdown>=6,<7

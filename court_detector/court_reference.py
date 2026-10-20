@@ -121,5 +121,3 @@ if __name__ == '__main__':
     c = CourtReference()
     c.build_court_reference()
     
-    
-    

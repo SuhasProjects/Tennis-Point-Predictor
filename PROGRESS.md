@@ -1,4 +1,32 @@
-# Implementation progress — October 13, 2026
+# Implementation progress — October 19, 2026
+
+## Reduced movement product
+
+- Added a one-command movement analyzer with compact SQLite coordinate storage,
+  causal jump rejection, short-gap filling, CSV export, and an HTML dashboard.
+- Added the public pretrained TrackNet ball checkpoint, three-frame inference, and a
+  separate backfill command so slow ball inference never requires rerunning player poses.
+- Added 0.5-second player-position prediction as a velocity-residual ridge model and a
+  rendered video showing movement trails plus predicted locations.
+- Downloaded and extracted the public TrackNet dataset locally: 19,645 usable
+  three-frame samples after clip boundaries, split by games into 15,970 training and
+  3,675 validation samples. Added an on-demand ball fine-tuning entry point.
+- Extracted six public sample clips into 1,545 compact coordinate rows. The player model
+  trained on five videos and achieved 0.929 m mean future-position error on the held-out
+  sixth video versus 0.962 m for constant velocity (3.4% improvement; 138 windows).
+- Generated `outputs/demo_annotated.mp4`, `outputs/demo_predictions.mp4`,
+  `outputs/demo_report.html`, `outputs/demo_movement.sqlite`, and CSV/model artifacts.
+- Backfilled the held-out clip with 128 raw ball detections; causal short-gap filling
+  provides 91.1% cleaned ball-coordinate coverage and a 572 px/s peak image speed.
+- Backfilled all five short clips with ball tracks (87.0%–98.1% cleaned coverage). A
+  controlled feature ablation measured 0.931 m error with ball input versus 0.929 m
+  without it, so the production predictor remains player-only while the product still
+  displays ball position, trail, and image-plane speed.
+- Verified one complete CPU fine-tuning step through the downloaded TrackNet dataset and
+  wrote a test checkpoint, confirming the ball-training path works before a long GPU run.
+- Current automated verification: seven passing tests and zero Ruff violations.
+
+# Earlier implementation progress — October 13, 2026
 
 ## Completed
 

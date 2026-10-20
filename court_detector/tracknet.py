@@ -90,5 +90,3 @@ if __name__ == '__main__':
     inp = torch.rand(1, 3, 360, 640)
     out = model(inp)
     print(f'out = {out.shape}')
-    
-    

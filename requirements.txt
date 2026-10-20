@@ -4,5 +4,3 @@ scipy>=1.14,<2
 torch>=2.5
 ultralytics>=8.3,<9
 PyYAML>=6,<7
-SQLAlchemy>=2.0,<3
-psycopg[binary]>=3.2,<4

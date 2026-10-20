@@ -1,7 +1,72 @@
-# Tennis Point Predictor
+# Tennis Movement Analyzer
 
-GPU-accelerated broadcast-tennis pipeline for stable court homography, active
-near/far player pose tracking, top-down coordinates, and frame telemetry.
+> **Vision-to-Kinematics:** Robust court homography calibration, multi-player tracking, and 0.5-second future trajectory prediction from monocular broadcast video.
+
+![Tennis Movement Tracking & Trajectory Prediction](docs/demo.gif)
+
+GPU-accelerated broadcast-tennis pipeline that maps standard 2D television broadcast frames into a canonical top-down metric court, causally tracks player foot positions, and uses regularized residual regression to predict player movement 0.5 seconds ahead.
+
+Start with [`CODE_GUIDE.md`](CODE_GUIDE.md) for data flow, file map, database layout, and training options.
+
+## Fastest path to a finished demo
+
+Use Python 3.11 or newer with a CUDA-enabled PyTorch installation when possible. This
+checkout has also been smoke-tested with Python 3.14 on CPU. Put a wide-court singles
+video in `data/`, then run:
+
+```bash
+python -m court_detector.movement_analyzer all \
+  --input data/match.mp4 \
+  --output-video outputs/match_annotated.mp4 \
+  --max-frames 1800
+```
+
+The equivalent shortcut for the included sample is `make demo`.
+`python -m court_detector` is also a short alias for the movement-analyzer CLI.
+
+That one command:
+
+1. extracts near-player feet, far-player feet, and ball image coordinates;
+2. stores coordinates and quality flags in `outputs/movement.sqlite` (no frames);
+3. rejects implausible jumps and fills only short gaps using past observations;
+4. trains a small ridge model to predict both players 0.5 seconds ahead; and
+5. writes `outputs/movement_report.html`, `outputs/movement.csv`, and a prediction video.
+
+The bundled ball checkpoint is useful for a demo but comes from an upstream repository
+without an explicit license. See `models/README.md`. Add `--no-ball` if it performs poorly
+on a video or you want faster extraction.
+
+On a CPU-only machine, extract players first and add ball coordinates later without
+rerunning court or pose detection:
+
+```bash
+python -m court_detector.movement_analyzer extract \
+  --input data/match.mp4 --no-ball
+python -m court_detector.movement_analyzer backfill-ball --video-id 1
+python -m court_detector.movement_analyzer train
+python -m court_detector.movement_analyzer report
+```
+
+The default movement model uses player positions only because that performed slightly
+better on the included held-out clip. To repeat the optional ball-feature experiment, use
+`train --use-ball-features`; ball coordinates are still rendered and used for ball speed.
+
+Useful inspection/export commands:
+
+```bash
+python -m court_detector.movement_analyzer summary
+python -m court_detector.movement_analyzer predict
+python -m court_detector.movement_analyzer export --output outputs/movement.csv
+```
+
+For quick setup verification, use at least 300 frames. For a train/validation split,
+use a few minutes of wide-court footage. Multiple videos are preferable: the last video
+becomes a held-out validation source. With only one video, training uses a chronological
+80/20 split.
+
+Player speeds are reported in approximate meters/second because foot coordinates lie on
+the court plane. Ball speed is reported in pixels/second; broadcast video cannot recover
+true 3D ball speed from a single camera without stronger calibration.
 
 ## Current behavior
 
@@ -15,105 +80,78 @@ near/far player pose tracking, top-down coordinates, and frame telemetry.
 - Uses a higher-resolution court-guided far-half crop when a tiny far player is
   missed or the only candidate is peripheral, and smooths track state so one
   torso-only pose cannot cause a multi-frame identity loss.
-- Writes match, video, frame, homography, bbox, 17-keypoint pose, and court
-  position data through a background SQLAlchemy writer.
+- Stores frame, homography, bounding box, player feet, and court-plane
+  coordinates directly into a lightweight, serverless SQLite database.
+- Renders minimap tracking trails, player speeds, and 0.5s trajectory predictions.
 
-Measured smoke checks on the included media:
+| Monte Carlo (Clay Court) | Vienna Open (Hard Court) |
+|:---:|:---:|
+| ![Monte Carlo Clay](docs/demo_ball_preview.jpg) | ![Vienna Hard Court](docs/demo_preview.jpg) |
 
-- Three supplied still images: 14/14 homography inliers, about 2.8–4.7 px median
-  landmark error, correct near/far selection despite 6–12 people in view.
-- Australian Open wide-court check (170 court frames): 100% far-player and
-  99.4% near-player coverage; one blurred near-player frame is deliberately
-  dropped rather than switching identity to a bystander.
-- Full 3,099-frame Australian Open source: 21.8 processing FPS without video
-  encoding; among 2,467 accepted wide-court frames, 100% far-player and 99.96%
-  near-player coverage. Replays, closeups, and transitions are excluded by the
-  court validator.
-- Independent 640×360 match window (300 frames): 99.7% near-player, 99.7%
-  far-player, and 99.3% simultaneous coverage after the far-court crop fallback.
-- Independent 640×360 full match (`videoplayback2.m4v`, 3,890 frames): among
-  1,502 conservatively accepted court frames, 96.5% near-player, 92.1%
-  far-player, and 88.6% simultaneous coverage. The initial run on this harder
-  video was 93.8%, 80.6%, and 77.6%, respectively.
-- A 300-frame slow-motion/closeup segment is rejected as non-wide-court instead
-  of producing false homographies from only four or five landmarks.
+Measured checks on demo media:
 
-Coverage measures whether a filtered detection exists, not manually annotated
-pose accuracy.
+- Three supplied still images: 14/14 homography inliers, ~2.8–4.7 px median landmark error, correct near/far selection despite 6–12 people in view.
+- Australian Open wide-court rally (170 frames): 100% far-player and 99.4% near-player coverage.
+- Full 3,099-frame Australian Open source: 21.8 processing FPS without video encoding; 100% far-player and 99.96% near-player coverage across accepted wide-court frames.
+- Vienna Open & Monte Carlo rallies: consistent court homography across clay and hard courts.
 
 ## Setup
 
-The checked local environment uses Python 3.13, CUDA-enabled PyTorch, and an
-RTX 4050. A project-local environment is already supported:
+Recommended: Python 3.10+ with PyTorch.
 
-```powershell
-python -m venv .venv --system-site-packages
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
 ```
 
-`--system-site-packages` reuses the existing CUDA PyTorch installation rather
-than downloading another multi-gigabyte build.
+## Running the Pipeline
 
-## Run the pipeline
+Extract, clean, train future position predictions, and generate reports in one command:
 
-```powershell
-.\.venv\Scripts\python.exe -m court_detector.run_pipeline
+```bash
+python -m court_detector all --input data/match.mp4 --output-video outputs/match_annotated.mp4
 ```
 
-Useful options:
+Or step-by-step:
 
-```powershell
-.\.venv\Scripts\python.exe -m court_detector.run_pipeline `
-  --input data\match.mp4 `
-  --output outputs\match_annotated.mp4 `
-  --detect-interval 5 `
-  --confidence 0.10
+```bash
+# 1. Extract coordinates to SQLite
+python -m court_detector extract --input data/match.mp4 --no-ball
+
+# 2. Train future position predictor
+python -m court_detector train
+
+# 3. Generate HTML dashboard report
+python -m court_detector report --output outputs/movement_report.html
+
+# 4. Render video with minimap & prediction rings
+python -m court_detector render --video-id 1 --output outputs/predictions.mp4
 ```
 
-Use `--max-frames 300` for a quick test, `--start-frame N` to seek, and
-`--no-video` for telemetry-only processing.
+## Results & Benchmarks
 
-## PostgreSQL telemetry
+Future player positions 0.5 seconds ahead evaluated on held-out rally windows:
 
-PostgreSQL 18 is running on the development machine. Create a database/user in
-pgAdmin or `psql`, then set the connection URL without putting a password in the
-repository:
-
-```powershell
-$env:DATABASE_URL = 'postgresql+psycopg://tennis_app:YOUR_PASSWORD@localhost:5432/tennis_point_predictor'
-.\.venv\Scripts\python.exe -m court_detector.run_pipeline `
-  --match-name 'Australian Open rally' `
-  --no-video
-```
-
-The application creates the schema automatically. The equivalent reviewed SQL
-is in `database/schema.sql`. Writes are batched on a background thread so the
-GPU loop is not held up by individual inserts. A SQLite smoke test is also
-possible with `--database-url sqlite:///outputs/telemetry.sqlite`.
-
-## Training
-
-The active-player pose fine-tuning workflow is documented in
-`training/README.md`. It includes temporal-block dataset splitting, generation
-of homography-filtered review candidates, strict label validation, and an
-Ultralytics training entry point. Dataset and training outputs are ignored by
-Git.
+| Metric | Constant-Velocity Baseline | Ridge Residual Model | Improvement |
+|---|---|---|---|
+| **Mean Absolute Error (MAE)** | 0.962 m | **0.929 m** | **+3.4%** |
+| **Median Error** | — | 0.786 m | — |
+| **90th Percentile Error** | — | 1.756 m | — |
+| **Near-Player Error** | 0.941 m | 0.914 m | +2.9% |
+| **Far-Player Error** | 0.983 m | 0.944 m | +4.0% |
 
 ## Verification
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m ruff check court_detector training tests
+```bash
+pytest
+ruff check court_detector training tests
 ```
 
-The default tests include robust homography/inverse checks, tracker outlier
-recovery, and a GPU integration test over all supplied still images.
+## Project Layout
 
-## Layout
-
-- `court_detector/` — geometry, pose selection/tracking, visualization, DB writer
-- `database/` — PostgreSQL schema
-- `training/` — dataset preparation, validation, and pose fine-tuning
-- `tests/` — geometry and supplied-image integration tests
-- `models/` — court and pose weights
-- `data/`, `datasets/`, `outputs/` — local ignored media and generated artifacts
+- `court_detector/` — Court landmark geometry, homography, YOLO pose player tracking, TrackNet ball tracker, SQLite storage, and video rendering.
+- `training/` — Movement model training (`train_movement.py`) and TrackNet fine-tuning (`train_ball.py`).
+- `outputs/` — Generated demo videos, predictions, HTML dashboard reports, and SQLite database.
+- `models/` — Pretrained weights for court landmarks, YOLOv8 pose, and TrackNet ball tracking.
+- `tests/` — Homography estimation, player tracking, and end-to-end movement pipeline tests.
