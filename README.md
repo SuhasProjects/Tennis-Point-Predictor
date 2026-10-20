@@ -1,10 +1,10 @@
 # Tennis Movement Analyzer
 
-> **Vision-to-Kinematics:** Robust court homography calibration, multi-player tracking, and 0.5-second future trajectory prediction from monocular broadcast video.
+> **Vision-to-Kinematics:** Robust court homography calibration, multi-player tracking, and 1.0-second future trajectory prediction from monocular broadcast video.
 
 ![Tennis Movement Tracking & Trajectory Prediction](docs/demo.gif)
 
-GPU-accelerated broadcast-tennis pipeline that maps standard 2D television broadcast frames into a canonical top-down metric court, causally tracks player foot positions, and uses regularized residual regression to predict player movement 0.5 seconds ahead.
+GPU-accelerated broadcast-tennis pipeline that maps standard 2D television broadcast frames into a canonical top-down metric court, causally tracks player foot positions, and uses regularized residual regression to predict player movement 1.0 second ahead.
 
 Start with [`CODE_GUIDE.md`](CODE_GUIDE.md) for data flow, file map, database layout, and training options.
 
@@ -29,7 +29,7 @@ That one command:
 1. extracts near-player feet, far-player feet, and ball image coordinates;
 2. stores coordinates and quality flags in `outputs/movement.sqlite` (no frames);
 3. rejects implausible jumps and fills only short gaps using past observations;
-4. trains a small ridge model to predict both players 0.5 seconds ahead; and
+4. trains a small ridge model to predict both players 1.0 second ahead; and
 5. writes `outputs/movement_report.html`, `outputs/movement.csv`, and a prediction video.
 
 The bundled ball checkpoint is useful for a demo but comes from an upstream repository
@@ -82,7 +82,7 @@ true 3D ball speed from a single camera without stronger calibration.
   torso-only pose cannot cause a multi-frame identity loss.
 - Stores frame, homography, bounding box, player feet, and court-plane
   coordinates directly into a lightweight, serverless SQLite database.
-- Renders minimap tracking trails, player speeds, and 0.5s trajectory predictions.
+- Renders minimap tracking trails, player speeds, and 1.0s trajectory predictions.
 
 | Monte Carlo (Clay Court) | Vienna Open (Hard Court) |
 |:---:|:---:|
@@ -131,15 +131,26 @@ python -m court_detector render --video-id 1 --output outputs/predictions.mp4
 
 ## Results & Benchmarks
 
-Future player positions 0.5 seconds ahead evaluated on held-out rally windows:
+Future player positions **1.0 second ahead** evaluated on held-out rally windows (video-disjoint split):
 
 | Metric | Constant-Velocity Baseline | Ridge Residual Model | Improvement |
 |---|---|---|---|
-| **Mean Absolute Error (MAE)** | 0.962 m | **0.929 m** | **+3.4%** |
-| **Median Error** | — | 0.786 m | — |
-| **90th Percentile Error** | — | 1.756 m | — |
-| **Near-Player Error** | 0.941 m | 0.914 m | +2.9% |
-| **Far-Player Error** | 0.983 m | 0.944 m | +4.0% |
+| **Mean Absolute Error (MAE)** | 2.521 m | **1.922 m** | **+23.8%** |
+| **Median Error** | — | 1.781 m | — |
+| **90th Percentile Error** | — | 3.479 m | — |
+| **Near-Player Error** | 2.548 m | 2.082 m | +18.3% |
+| **Far-Player Error** | 2.494 m | 1.761 m | +29.4% |
+
+### Horizon Scaling
+
+As the forecast horizon expands, straight-line physics baselines diverge because tennis players decelerate and recover toward the center of the court. The regularized residual model captures this geometry:
+
+| Forecast Horizon | Constant-Velocity MAE | Model MAE | Improvement over Physics |
+|---|---|---|---|
+| **0.5 seconds** | 0.962 m | **0.817 m** | +15.1% |
+| **1.0 second (Default)** | 2.521 m | **1.922 m** | **+23.8%** |
+| **1.5 seconds** | 4.213 m | **3.148 m** | +25.3% |
+| **2.0 seconds** | 5.549 m | **4.111 m** | +25.9% |
 
 ## Verification
 

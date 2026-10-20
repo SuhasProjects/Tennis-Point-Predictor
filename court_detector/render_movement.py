@@ -139,9 +139,10 @@ def render(database: Path, model_path: Path, video_id: int, output: Path) -> Non
                     2,
                     cv2.LINE_AA,
                 )
+                horizon_s = float(metadata.get("horizon_seconds", 0.5))
                 cv2.putText(
                     frame,
-                    "rings: 0.5 s prediction",
+                    f"rings: {horizon_s:.1f} s prediction",
                     (x0, y0 + panel_height + 26),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.48,

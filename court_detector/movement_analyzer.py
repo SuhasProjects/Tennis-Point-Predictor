@@ -314,7 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
     train.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     train.add_argument("--history-seconds", type=float, default=0.5)
-    train.add_argument("--horizon-seconds", type=float, default=0.5)
+    train.add_argument("--horizon-seconds", type=float, default=1.0)
     train.add_argument("--use-ball-features", action="store_true")
     predict = commands.add_parser(
         "predict", help="predict from the latest complete coordinate window"
@@ -351,7 +351,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=PROJECT_ROOT / "outputs" / "movement_predictions.mp4",
     )
     all_command.add_argument("--history-seconds", type=float, default=0.5)
-    all_command.add_argument("--horizon-seconds", type=float, default=0.5)
+    all_command.add_argument("--horizon-seconds", type=float, default=1.0)
     all_command.add_argument("--use-ball-features", action="store_true")
     return parser
 

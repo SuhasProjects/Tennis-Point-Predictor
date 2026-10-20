@@ -126,8 +126,8 @@ def train(
     output: Path,
     *,
     history_seconds: float = 0.5,
-    horizon_seconds: float = 0.5,
-    ridge: float = 10000.0,
+    horizon_seconds: float = 1.0,
+    ridge: float = 10.0,
     use_ball_features: bool = False,
 ) -> dict:
     connection = sqlite3.connect(database)
@@ -236,8 +236,8 @@ def main() -> None:
         "--output", type=Path, default=PROJECT_ROOT / "outputs" / "movement_model.npz"
     )
     parser.add_argument("--history-seconds", type=float, default=0.5)
-    parser.add_argument("--horizon-seconds", type=float, default=0.5)
-    parser.add_argument("--ridge", type=float, default=10000.0)
+    parser.add_argument("--horizon-seconds", type=float, default=1.0)
+    parser.add_argument("--ridge", type=float, default=10.0)
     parser.add_argument("--use-ball-features", action="store_true")
     parser.add_argument("--predict-latest", action="store_true")
     args = parser.parse_args()
