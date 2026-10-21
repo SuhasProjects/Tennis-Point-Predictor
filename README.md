@@ -131,16 +131,16 @@ python -m court_detector render --video-id 1 --output outputs/predictions.mp4
 
 ## Results & Benchmarks
 
-Evaluated on held-out broadcast rallies (**1,566 training windows** across 8 matches; **145 validation windows** held out on an unseen grass-court match):
+Evaluated on held-out broadcast rallies (**3,739 training windows** across 16 matches; **253 validation windows** held out on an unseen grass-court match):
 
 | Metric | Constant-Velocity Baseline | Ridge Residual Model | Improvement |
 |---|---|---|---|
-| **Mean Absolute Error (MAE)** | 1.909 m | **1.520 m** | **+20.3%** |
-| **Median Error** | — | 1.463 m | — |
-| **90th Percentile Error** | — | 2.574 m | — |
-| **Near-Player Error** | 1.921 m | 1.343 m | +30.1% |
-| **Far-Player Error** | 1.896 m | 1.698 m | +10.4% |
-| **Dataset Scale** | — | 3,075 frames (9 videos) | Multi-surface (Clay/Hard/Grass) |
+| **Mean Absolute Error (MAE)** | 2.201 m | **1.531 m** | **+30.4%** |
+| **Median Error** | — | 1.367 m | — |
+| **90th Percentile Error** | — | 2.699 m | — |
+| **Near-Player Error** | 2.201 m | 1.781 m | +19.1% |
+| **Far-Player Error** | 2.202 m | 1.282 m | +41.8% |
+| **Dataset Scale** | — | 6,255 frames (17 videos) | Multi-surface (Clay/Hard/Grass) |
 
 ### Horizon Scaling
 
