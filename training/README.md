@@ -1,4 +1,4 @@
-# Active-player pose training
+# Tennis Movement Training
 
 ## Recommended movement-product workflow
 
@@ -20,14 +20,12 @@ python -m court_detector.movement_analyzer report
 ```
 
 Training defaults to player-only features. Add `--use-ball-features` to `train` to include
-the stored ball coordinates and availability flags. On the current six-video demo, the
-player-only model measured 0.929 m mean error versus 0.931 m with ball features, so the
-player-only result is the production artifact.
+the stored ball coordinates and availability flags.
 
 The database contains frame/time identifiers, court validity, scene segments, feet
 coordinates, ball coordinates, confidence, speeds, and imputation flags. It deliberately
 does not contain video frames or pose arrays. The learned target is each player's court
-position 0.5 seconds in the future. This provides automatic labels from later coordinates
+position 1.0 second in the future. This provides automatic labels from later coordinates
 without pretending to predict a point winner.
 
 ## Optional ball fine-tuning
