@@ -47,6 +47,7 @@ def generate_report(database: Path, output: Path) -> None:
     cards = "<div class='card'><b>Model</b><span>not trained yet</span></div>"
     if metrics:
         player_speeds = all_near_speeds + all_far_speeds
+        split_label = "Multi-surface avg" if "multi-surface" in metrics.get("split", "") else "vs. velocity"
         cards = "".join(
             f"<div class='card'><b>{label}</b><span>{value}</span></div>"
             for label, value in (
@@ -55,7 +56,7 @@ def generate_report(database: Path, output: Path) -> None:
                 ("90th percentile", f"{metrics.get('model_p90_error_m', 0.0):.3f} m"),
                 ("Velocity baseline", f"{metrics['baseline_mae_m']:.3f} m"),
                 (
-                    "vs. velocity",
+                    split_label,
                     f"{metrics.get('improvement_over_velocity_pct', 0.0):+.1f}%",
                 ),
                 ("Validation windows", str(metrics["validation_samples"])),
@@ -85,6 +86,7 @@ def generate_report(database: Path, output: Path) -> None:
     prediction_payload = json.dumps(
         None if metrics is None else metrics.get("latest_prediction")
     ).replace("</", "<\\/")
+    horizon_text = f"{metrics['horizon_seconds']:.1f}" if metrics and "horizon_seconds" in metrics else "1.0"
     document = f"""<!doctype html><html><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>Tennis Movement Analyzer</title><style>
@@ -93,7 +95,7 @@ h1{{font-size:34px;margin-bottom:4px}}.sub{{color:#9fc2aa}}.cards{{display:grid;
 .card,section{{background:#10251a;border:1px solid #244a32;border-radius:12px;padding:18px}}.card span{{display:block;font-size:25px;margin-top:8px;color:#89f0aa}}
 canvas{{width:100%;height:430px;background:#173924;border-radius:8px}}#speed{{height:240px;background:#0b1b12}}table{{width:100%;border-collapse:collapse}}td,th{{padding:9px;text-align:left;border-bottom:1px solid #244a32}}
 .legend i{{display:inline-block;width:11px;height:11px;border-radius:50%;margin:0 6px 0 14px}}</style></head><body><main>
-<h1>Tennis Movement Analyzer</h1><div class='sub'>Compact coordinates, player speed, ball image speed, and 0.5-second movement prediction.</div>
+<h1>Tennis Movement Analyzer</h1><div class='sub'>Compact coordinates, player speed, ball image speed, and {horizon_text}-second multi-surface movement prediction.</div>
 <div class='cards'>{cards}</div><section><h2>Top-down movement</h2><div class='legend'><i style='background:#47e675'></i>near player <i style='background:#ffad33'></i>far player</div><canvas id='court' width='960' height='430'></canvas></section>
 <section style='margin-top:16px'><h2>Movement speed</h2><div class='legend'><i style='background:#47e675'></i>near m/s <i style='background:#ffad33'></i>far m/s</div><canvas id='speed' width='960' height='240'></canvas></section>
 <section style='margin-top:16px'><h2>Extraction coverage</h2><table><tr><th>ID</th><th>Video</th><th>Frames</th><th>Near</th><th>Far</th><th>Ball</th></tr>{table}</table></section>

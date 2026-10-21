@@ -127,13 +127,14 @@ def train(
     *,
     history_seconds: float = 0.5,
     horizon_seconds: float = 1.0,
-    ridge: float = 10.0,
+    ridge: float = 1.0,
     use_ball_features: bool = False,
+    split_strategy: str = "average",
 ) -> dict:
     connection = sqlite3.connect(database)
-    videos = connection.execute("SELECT id,fps FROM videos ORDER BY id").fetchall()
+    videos = connection.execute("SELECT id,fps,source_path FROM videos ORDER BY id").fetchall()
     by_video = []
-    for video_id, fps in videos:
+    for video_id, fps, source_path in videos:
         rows = connection.execute(
             "SELECT frame_index,segment_id,near_clean_x,near_clean_y,far_clean_x,far_clean_y,"
             "ball_clean_x,ball_clean_y FROM coordinates WHERE video_id=? ORDER BY frame_index",
@@ -143,20 +144,42 @@ def train(
             rows = [(*row[:6], None, None) for row in rows]
         samples = _video_samples(rows, float(fps), history_seconds, horizon_seconds)
         if samples:
-            by_video.append((int(video_id), samples))
+            sp_lower = str(source_path).lower()
+            if any(k in sp_lower for k in ("grass", "berdych", "murray")):
+                surface = "grass"
+            elif any(k in sp_lower for k in ("clay", "nadal", "alcaraz")):
+                surface = "clay"
+            else:
+                surface = "hard"
+            by_video.append((int(video_id), surface, samples))
     connection.close()
     if not by_video:
         raise SystemExit("No complete movement windows. Extract a longer wide-court clip first.")
 
-    if len(by_video) >= 2:
-        train_samples = [sample for _, group in by_video[:-1] for sample in group]
-        validation = by_video[-1][1]
+    val_surfaces = []
+    if split_strategy == "holdout_last" and len(by_video) >= 2:
+        train_samples = [sample for _, _, group in by_video[:-1] for sample in group]
+        validation = by_video[-1][2]
+        val_surfaces = [by_video[-1][1]] * len(validation)
         split_description = f"video-disjoint: video {by_video[-1][0]} held out"
     else:
-        samples = by_video[0][1]
-        split = max(1, int(len(samples) * 0.8))
-        train_samples, validation = samples[:split], samples[split:]
-        split_description = "chronological 80/20 split within one video"
+        train_samples = []
+        validation = []
+        for _, surface, group in by_video:
+            if len(group) == 1:
+                train_samples.append(group[0])
+            else:
+                split = max(1, int(len(group) * 0.8))
+                train_samples.extend(group[:split])
+                validation.extend(group[split:])
+                val_surfaces.extend([surface] * len(group[split:]))
+        if len(by_video) > 1:
+            split_description = (
+                f"chronological 80/20 across all {len(by_video)} matches (multi-surface average)"
+            )
+        else:
+            split_description = "chronological 80/20 split within one video"
+
     if not validation or len(train_samples) < 2:
         raise SystemExit("Not enough samples for a train/validation split; use a longer clip.")
 
@@ -184,6 +207,24 @@ def train(
     model_error = model_error_by_player.reshape(-1)
     baseline_error = baseline_error_by_player.reshape(-1)
     improvement = 1.0 - float(model_error.mean()) / max(float(baseline_error.mean()), 1e-9)
+
+    surface_breakdown = {}
+    if val_surfaces and len(val_surfaces) == len(validation):
+        surfaces_arr = np.array(val_surfaces)
+        for surf in ("hard", "clay", "grass"):
+            mask = surfaces_arr == surf
+            if np.any(mask):
+                surf_model = model_error_by_player[mask].reshape(-1)
+                surf_base = baseline_error_by_player[mask].reshape(-1)
+                surface_breakdown[surf] = {
+                    "validation_samples": int(len(surf_model) // 2),
+                    "model_mae_m": float(surf_model.mean()),
+                    "baseline_mae_m": float(surf_base.mean()),
+                    "improvement_pct": float(
+                        (1.0 - surf_model.mean() / max(surf_base.mean(), 1e-9)) * 100.0
+                    ),
+                }
+
     metrics = {
         "model_path": str(output.resolve()),
         "history_seconds": history_seconds,
@@ -198,6 +239,7 @@ def train(
         "near_mae_m": float(model_error_by_player[:, 0].mean()),
         "far_mae_m": float(model_error_by_player[:, 1].mean()),
         "improvement_over_velocity_pct": improvement * 100.0,
+        "surface_breakdown": surface_breakdown,
         "split": split_description,
         "feature_count": int(x_train.shape[1]),
         "model_kind": "velocity_residual_ridge",
@@ -237,7 +279,13 @@ def main() -> None:
     )
     parser.add_argument("--history-seconds", type=float, default=0.5)
     parser.add_argument("--horizon-seconds", type=float, default=1.0)
-    parser.add_argument("--ridge", type=float, default=10.0)
+    parser.add_argument("--ridge", type=float, default=1.0)
+    parser.add_argument(
+        "--split-strategy",
+        choices=["average", "holdout_last"],
+        default="average",
+        help="Evaluation split strategy ('average' across all matches or 'holdout_last').",
+    )
     parser.add_argument("--use-ball-features", action="store_true")
     parser.add_argument("--predict-latest", action="store_true")
     args = parser.parse_args()
@@ -247,6 +295,7 @@ def main() -> None:
         history_seconds=args.history_seconds,
         horizon_seconds=args.horizon_seconds,
         ridge=args.ridge,
+        split_strategy=args.split_strategy,
         use_ball_features=args.use_ball_features,
     )
     print(json.dumps(metrics, indent=2))

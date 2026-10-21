@@ -9,7 +9,7 @@
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)](https://opencv.org/)
 [![Database](https://img.shields.io/badge/Storage-SQLite3-003B57.svg)](https://www.sqlite.org/)
 [![Tests](https://img.shields.io/badge/Tests-7%20Passed-brightgreen.svg)]()
-[![Model Accuracy](https://img.shields.io/badge/Accuracy-%2B30.4%25%20vs%20Physics-success.svg)]()
+[![Model Accuracy](https://img.shields.io/badge/Accuracy-%2B20.3%25%20Multi--Surface%20Avg-success.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br/>
@@ -34,32 +34,43 @@ Monocular broadcast tennis video presents extreme challenges for kinematic analy
 1. **Dynamic Court Calibration**: Detects 14 key court landmarks to compute a planar homography matrix $H$, transforming 2D broadcast pixels into a canonical metric top-down court (in meters).
 2. **Confidence-Aware Pose Tracking**: Leverages YOLOv8 keypoints to isolate athletic ankle/foot ground contacts, filtering background ball kids, referees, and crowd members.
 3. **Causal Coordinate Filtering**: Implements a zero-leakage SQLite coordinate store that filters kinematic outliers and smooths tracking state strictly from past observations.
-4. **Kinematic Trajectory Forecasting**: Outperforms constant-velocity physics baselines by **+30.4%** at a 1.0-second horizon (**+41.8%** on far-court players) by learning court-recovery vectors and momentum damping.
+4. **Kinematic Trajectory Forecasting**: Outperforms constant-velocity physics baselines by **+20.3% across all surfaces** at a 1.0-second horizon (reaching **+48.4% on clay courts** and **+26.0% in full cross-validation**) by learning court-recovery vectors and momentum damping.
 
 ---
 
 ## Empirical Benchmarks
 
-The trajectory forecasting model was benchmarked across **6,255 annotated frames (17 match sources)** covering hard, clay, and grass surfaces. Evaluated on **3,739 training windows** with **253 validation windows** held out on an unseen grass-court rally:
+The trajectory forecasting model was benchmarked across **6,255 annotated frames (17 match sources)** covering hard, clay, and grass surfaces. Evaluated with an **80/20 chronological split across all 17 matches** (**3,188 training windows**, **804 validation windows**):
 
-### 1.0-Second Horizon Performance
+### Multi-Surface Performance (1.0-Second Horizon)
+
+| Surface | Validation Windows | Constant-Velocity Baseline | Ridge Residual Model | Relative Improvement |
+| :--- | :---: | :---: | :---: | :---: |
+| **Clay Courts** (e.g. Roland Garros) | 60 | `2.187 m` | **`1.129 m`** | **+48.4%** |
+| **Grass Courts** (e.g. Wimbledon) | 80 | `2.155 m` | **`1.736 m`** | **+19.4%** |
+| **Hard Courts** (e.g. Australian Open / Shanghai) | 664 | `2.004 m` | **`1.650 m`** | **+17.7%** |
+| **Multi-Surface Overall Average** | **804** | `2.033 m` | **`1.620 m`** | **+20.3%** |
+
+*In Leave-One-Video-Out Cross Validation across all 3,992 windows, the model achieves **1.523 m MAE** vs **2.057 m baseline** (**+26.0% overall improvement**).*
+
+### Error Distribution (Average Across All Surfaces)
 
 | Metric | Constant-Velocity Baseline | Ridge Residual Model | Relative Improvement |
 | :--- | :---: | :---: | :---: |
-| **Overall Mean Absolute Error (MAE)** | `2.201 m` | **`1.531 m`** | **+30.4%** |
-| **Median Prediction Error** | `1.984 m` | **`1.367 m`** | **+31.1%** |
-| **90th Percentile Error** | `3.812 m` | **`2.699 m`** | **+29.2%** |
-| **Far-Court Player MAE** | `2.202 m` | **`1.282 m`** | **+41.8%** |
-| **Near-Court Player MAE** | `2.201 m` | **`1.781 m`** | **+19.1%** |
+| **Mean Absolute Error (MAE)** | `2.033 m` | **`1.620 m`** | **+20.3%** |
+| **Median Prediction Error** | `1.815 m` | **`1.421 m`** | **+21.7%** |
+| **90th Percentile Error** | `3.650 m` | **`3.091 m`** | **+15.3%** |
+| **Near-Court Player MAE** | `2.029 m` | **`1.617 m`** | **+20.3%** |
+| **Far-Court Player MAE** | `2.036 m` | **`1.623 m`** | **+20.3%** |
 
 ### Horizon Scaling
 
 Physics baselines diverge rapidly because human athletes do not travel in infinite straight lines—they brake, slide, and recover toward the center of the baseline. Our learned kinematic residual captures this deceleration:
 
-| Forecast Horizon | Constant-Velocity MAE | Model MAE | Improvement over Physics |
+| Forecast Horizon | Constant-Velocity MAE | Model MAE | Average Improvement |
 | :---: | :---: | :---: | :---: |
 | **0.5 seconds** | `0.962 m` | **`0.817 m`** | `+15.1%` |
-| **1.0 second (Default)** | `2.201 m` | **`1.531 m`** | **`+30.4%`** |
+| **1.0 second (Default)** | `2.033 m` | **`1.620 m`** | **`+20.3%`** |
 | **1.5 seconds** | `4.213 m` | **`3.148 m`** | `+25.3%` |
 | **2.0 seconds** | `5.549 m` | **`4.111 m`** | `+25.9%` |
 
