@@ -2,8 +2,8 @@
 
 ## What the product does
 
-The reduced product answers: **where will the near and far tennis players be 0.5
-seconds from now?** It also displays estimated player speed, ball location, ball trail,
+The reduced product answers: **where will the near and far tennis players be 1.0
+second from now?** It also displays estimated player speed, ball location, ball trail,
 and image-plane ball speed. It does not predict the winner of a point because the current
 data has no verified point-outcome labels.
 
@@ -24,9 +24,9 @@ player motion. Video pixels are not stored in the training database.
 6. `court_detector/movement_db.py` causally rejects large jumps, fills short gaps using
    past values, smooths coordinates, and computes speeds. It never uses future frames to
    clean an earlier frame.
-7. `training/train_movement.py` creates four snapshots over the previous 0.5 seconds. It
+7. `training/train_movement.py` creates snapshot features over the previous 1.0 second. It
    extrapolates constant velocity, then trains ridge regression to correct that estimate
-   using a position 0.5 seconds in the future as the automatic target.
+   using a position 1.0 second in the future as the target.
 8. `court_detector/render_movement.py` reads the original video and stored coordinates,
    then draws trails, speeds, and prediction rings. `movement_report.py` creates the HTML
    dashboard.
