@@ -131,15 +131,16 @@ python -m court_detector render --video-id 1 --output outputs/predictions.mp4
 
 ## Results & Benchmarks
 
-Future player positions **1.0 second ahead** evaluated on held-out rally windows (video-disjoint split):
+Evaluated on held-out broadcast rallies (**1,566 training windows** across 8 matches; **145 validation windows** held out on an unseen grass-court match):
 
 | Metric | Constant-Velocity Baseline | Ridge Residual Model | Improvement |
 |---|---|---|---|
-| **Mean Absolute Error (MAE)** | 2.521 m | **1.922 m** | **+23.8%** |
-| **Median Error** | — | 1.781 m | — |
-| **90th Percentile Error** | — | 3.479 m | — |
-| **Near-Player Error** | 2.548 m | 2.082 m | +18.3% |
-| **Far-Player Error** | 2.494 m | 1.761 m | +29.4% |
+| **Mean Absolute Error (MAE)** | 1.909 m | **1.520 m** | **+20.3%** |
+| **Median Error** | — | 1.463 m | — |
+| **90th Percentile Error** | — | 2.574 m | — |
+| **Near-Player Error** | 1.921 m | 1.343 m | +30.1% |
+| **Far-Player Error** | 1.896 m | 1.698 m | +10.4% |
+| **Dataset Scale** | — | 3,075 frames (9 videos) | Multi-surface (Clay/Hard/Grass) |
 
 ### Horizon Scaling
 
